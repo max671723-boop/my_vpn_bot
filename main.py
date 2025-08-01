@@ -7,7 +7,6 @@ import time
 
 TOKEN = '8480626201:AAG9AzRxwdYboj5SNLeNcVtOrNOvlNY_vsM'
 ADMIN_ID = 7210975276
-WEBHOOK_URL = https://my-vpn-bot-gvob.onrender.com/8480626201:AAG9AzRxwdYboj5SNLeNcVtOrNOvlNY_vsM
 
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
