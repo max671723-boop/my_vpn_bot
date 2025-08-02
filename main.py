@@ -1,8 +1,6 @@
 from flask import Flask, request
 import requests
 import os
-from datetime import datetime
-import pytz
 
 TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I"
 ADMIN_ID = 7210975276
@@ -53,9 +51,7 @@ def handle_message(message):
         order = pending_orders.pop(user_id)
         service_name = text.strip()
 
-        tehran = pytz.timezone('Asia/Tehran')
-        date_str = datetime.now(tehran).strftime('%Y/%m/%d')
-        invoice_id = f"INV-{datetime.now(tehran).strftime('%Y%m%d%H%M%S')}"
+        invoice_id = f"INV-{os.urandom(4).hex()}"  # ساخت فاکتور رندوم بدون تاریخ
 
         invoices[invoice_id] = {
             "user_id": user_id,
@@ -65,7 +61,7 @@ def handle_message(message):
 
         requests.post(f"{API}/sendMessage", json={
             "chat_id": chat_id,
-            "text": f"✅ سفارش شما با موفقیت ثبت شد.\n\n📝 نام سرویس: {service_name}\n💾 حجم: {order['volume']}\n📅 تاریخ ثبت: {date_str}\n🧾 شماره فاکتور: `{invoice_id}`",
+            "text": f"✅ سفارش شما با موفقیت ثبت شد.\n\n📝 نام سرویس: {service_name}\n💾 حجم: {order['volume']}\n🧾 شماره فاکتور: `{invoice_id}`",
             "parse_mode": "Markdown"
         })
 
@@ -77,7 +73,7 @@ def handle_message(message):
 
         requests.post(f"{API}/sendMessage", json={
             "chat_id": ADMIN_ID,
-            "text": f"📥 سفارش جدید:\n👤 نام: {order['name']}\n🔗 یوزرنیم: @{order['username']}\n💾 حجم: {order['volume']}\n📝 سرویس: {service_name}\n📅 تاریخ: {date_str}\n🧾 فاکتور: {invoice_id}",
+            "text": f"📥 سفارش جدید:\n👤 نام: {order['name']}\n🔗 یوزرنیم: @{order['username']}\n💾 حجم: {order['volume']}\n📝 سرویس: {service_name}\n🧾 فاکتور: {invoice_id}",
             "reply_markup": admin_btn
         })
 
