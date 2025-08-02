@@ -1,118 +1,92 @@
-from flask import Flask, request, render_template_string, abort
-import os
-import requests
+from flask import Flask, request, render_template_string, abort import os import requests
 
-app = Flask(__name__)
+app = Flask(name)
 
-BOT_TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I"
-API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
-ADMIN_ID = 7210975276  # آیدی عددی ادمین
-
-# آدرس وب‌هوک سرور (لینک رندر یا هر جای دیگه)
-WEBHOOK_URL = f"https://my-vpn-bot-1-m1vj.onrender.com/{BOT_TOKEN}"
+BOT_TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I" API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}" ADMIN_ID = 7210975276 SUPPORT_USERNAME = "@vpn_seller_support"  # یوزرنیم پشتیبانی
 
 orders = []
 
-def set_webhook():
-    url = f"{API_URL}/setWebhook"
-    params = {"url": WEBHOOK_URL}
-    res = requests.get(url, params=params)
-    if res.status_code == 200:
-        print("Webhook set successfully.")
+def send_message(chat_id, text, reply_markup=None): url = f"{API_URL}/sendMessage" payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"} if reply_markup: payload["reply_markup"] = reply_markup requests.post(url, json=payload)
+
+def answer_callback(query_id, text): url = f"{API_URL}/answerCallbackQuery" requests.post(url, json={"callback_query_id": query_id, "text": text})
+
+@app.route(f"/{BOT_TOKEN}", methods=["POST"]) def webhook(): update = request.get_json()
+
+if "message" in update:
+    message = update["message"]
+    chat_id = message["chat"]["id"]
+    user_id = message["from"]["id"]
+    username = message["from"].get("username", "ندارد")
+    text = message.get("text", "")
+
+    if text == "/start":
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "🛒 ثبت سفارش جدید", "callback_data": "new_order"}],
+                [{"text": "📋 سفارش‌های من", "callback_data": "my_orders"}],
+                [{"text": "📞 پشتیبانی سریع", "callback_data": "support"}],
+                [{"text": "ℹ️ راهنما", "callback_data": "help"}]
+            ]
+        }
+        send_message(chat_id, "سلام! خوش آمدید. یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=keyboard)
+
     else:
-        print(f"Failed to set webhook: {res.text}")
+        orders.append({
+            "id": len(orders)+1,
+            "user_id": user_id,
+            "username": username,
+            "text": text,
+            "response": None
+        })
+        send_message(chat_id, "✅ سفارش شما ثبت شد و به ادمین ارسال گردید.")
+        send_message(ADMIN_ID, f"📩 سفارش جدید از @{username} (ID: {user_id}):\n{text}")
 
-def send_message(chat_id, text):
-    url = f"{API_URL}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text}
-    resp = requests.post(url, json=payload)
-    return resp.json()
+elif "callback_query" in update:
+    query = update["callback_query"]
+    query_id = query["id"]
+    data = query["data"]
+    user_id = query["from"]["id"]
+    chat_id = query["message"]["chat"]["id"]
+    username = query["from"].get("username", "ندارد")
 
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    update = request.get_json()
+    answer_callback(query_id, "در حال پردازش...")
 
-    if "message" in update:
-        msg = update["message"]
-        user_id = msg["from"]["id"]
-        username = msg["from"].get("username", "ندارد")
-        chat_id = msg["chat"]["id"]
-        text = msg.get("text", "").strip()
-
-        if text == "/start":
-            send_message(chat_id, "سلام! ربات پنل همکاری VPN آماده است. لطفا سفارش یا پیام خود را ارسال کنید.")
+    if data == "new_order":
+        send_message(chat_id, "✍️ لطفا متن سفارش خود را ارسال کنید.")
+    elif data == "my_orders":
+        user_orders = [o for o in orders if o["user_id"] == user_id]
+        if not user_orders:
+            send_message(chat_id, "📭 شما هنوز سفارشی ثبت نکرده‌اید.")
         else:
-            order_id = len(orders) + 1
-            orders.append({
-                "id": order_id,
-                "user_id": user_id,
-                "username": username,
-                "text": text,
-                "response": None
-            })
-            send_message(ADMIN_ID, f"سفارش جدید #{order_id} از @{username} (ID: {user_id}):\n{text}")
-            send_message(chat_id, f"سفارش شما ثبت شد با شماره: #{order_id}\nمنتظر پاسخ ادمین باشید.")
+            result = ""
+            for o in user_orders:
+                result += f"\n🧾 سفارش #{o['id']}\n📝 {o['text']}\n📤 پاسخ: {o['response'] or 'در انتظار پاسخ'}\n"
+            send_message(chat_id, result.strip())
+    elif data == "support":
+        send_message(chat_id, f"📞 برای پشتیبانی مستقیم با ما در تماس باشید:
 
-    return "OK", 200
+{SUPPORT_USERNAME}") elif data == "help": send_message(chat_id, "ℹ️ برای ثبت سفارش، روی دکمه "ثبت سفارش جدید" کلیک کنید و مشخصات سرویس را وارد نمایید. در صورت نیاز به پیگیری، از دکمه "سفارش‌های من" استفاده نمایید.")
 
-def check_admin(user_id):
-    return user_id == ADMIN_ID
+return "OK", 200
 
-@app.route("/admin", methods=["GET", "POST"])
-def admin_panel():
-    user_id = request.args.get("user_id", type=int)
-    if not check_admin(user_id):
-        return abort(403, description="دسترسی فقط برای ادمین مجاز است.")
+def check_admin(user_id): return user_id == ADMIN_ID
 
-    msg = ""
-    if request.method == "POST":
-        order_id = int(request.form.get("order_id", -1))
-        response_text = request.form.get("response_text", "").strip()
-        if order_id > 0 and response_text:
-            order = next((o for o in orders if o["id"] == order_id), None)
-            if order:
-                order["response"] = response_text
-                send_message(order["user_id"], f"پاسخ ادمین به سفارش #{order_id}:\n{response_text}")
-                msg = "پاسخ ارسال شد."
-            else:
-                msg = "سفارش یافت نشد."
+@app.route("/admin", methods=["GET"]) def admin_panel(): from flask import request user_id = request.args.get("user_id", type=int) if not check_admin(user_id): return abort(403, description="دسترسی فقط برای ادمین مجاز است.")
 
-    html = """
-    <h2>پنل ادمین - سفارش‌ها و پیام‌های همکاران</h2>
-    <p style="color:green;">{{ msg }}</p>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
-        <tr>
-            <th>شماره سفارش</th>
-            <th>کاربر (username)</th>
-            <th>متن سفارش</th>
-            <th>پاسخ</th>
-            <th>ارسال پاسخ</th>
-        </tr>
-        {% for order in orders %}
-        <tr>
-            <td>{{ order.id }}</td>
-            <td>@{{ order.username }} ({{ order.user_id }})</td>
-            <td>{{ order.text }}</td>
-            <td>{{ order.response or "بدون پاسخ" }}</td>
-            <td>
-            {% if not order.response %}
-                <form method="post" style="margin:0;">
-                    <input type="hidden" name="order_id" value="{{ order.id }}">
-                    <textarea name="response_text" rows="2" cols="30" placeholder="جواب را اینجا بنویس..." required></textarea><br>
-                    <button type="submit">ارسال پاسخ</button>
-                </form>
-            {% else %}
-                ---
-            {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
-    """
+html = """
+<h2>پنل ادمین - سفارش‌های ثبت‌شده</h2>
+<table border="1" cellpadding="6" cellspacing="0">
+    <tr><th>شماره</th><th>کاربر</th><th>متن سفارش</th></tr>
+    {% for o in orders %}
+    <tr>
+        <td>#{{ o.id }}</td>
+        <td>@{{ o.username }}<br>(<a href='https://t.me/{{ o.username }}' target='_blank'>باز کردن تلگرام</a>)</td>
+        <td>{{ o.text }}</td>
+    </tr>
+    {% endfor %}
+</table>
+"""
+return render_template_string(html, orders=orders)
 
-    return render_template_string(html, orders=orders, msg=msg)
+if name == "main": port = int(os.environ.get("PORT", 5000)) app.run(host="0.0.0.0", port=port)
 
-if __name__ == "__main__":
-    set_webhook()  # ست کردن خودکار وب‌هوک هنگام استارت برنامه
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
