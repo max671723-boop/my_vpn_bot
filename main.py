@@ -1,114 +1,118 @@
-from flask import Flask, request
-import requests
+from flask import Flask, request, render_template_string, abort
 import os
+import requests
 
-# تنظیمات
-TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I"
-ADMIN_ID = 7210975276
-API_URL = f"https://api.telegram.org/bot{TOKEN}/"
-WEBHOOK_URL = https://my-vpn-bot-1-m1vj.onrender.com
-
-# ساخت پوشه دیتا
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
-
-# ساخت اپ Flask
 app = Flask(__name__)
 
-# تابع ارسال پیام
-def send_message(chat_id, text, keyboard=None):
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-    if keyboard:
-        payload["reply_markup"] = {"keyboard": keyboard, "resize_keyboard": True}
-    requests.post(API_URL + "sendMessage", json=payload)
+BOT_TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I"
+API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+ADMIN_ID = 7210975276  # آیدی عددی ادمین
 
-# تابع ذخیره مرحله کاربر
-def save_step(user_id, step):
-    with open(f"{DATA_DIR}/{user_id}-step.txt", "w") as f:
-        f.write(step)
+# آدرس وب‌هوک سرور (لینک رندر یا هر جای دیگه)
+WEBHOOK_URL = f"https://my-vpn-bot-1-m1vj.onrender.com/{BOT_TOKEN}"
 
-# تابع دریافت مرحله فعلی کاربر
-def get_step(user_id):
-    path = f"{DATA_DIR}/{user_id}-step.txt"
-    return open(path).read() if os.path.exists(path) else "none"
+orders = []
 
-# هندل درخواست‌ها (Webhook)
-@app.route("/", methods=["POST"])
+def set_webhook():
+    url = f"{API_URL}/setWebhook"
+    params = {"url": WEBHOOK_URL}
+    res = requests.get(url, params=params)
+    if res.status_code == 200:
+        print("Webhook set successfully.")
+    else:
+        print(f"Failed to set webhook: {res.text}")
+
+def send_message(chat_id, text):
+    url = f"{API_URL}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text}
+    resp = requests.post(url, json=payload)
+    return resp.json()
+
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = request.get_json()
-    if "message" not in update:
-        return "ok"
 
-    message = update["message"]
-    text = message.get("text", "")
-    chat_id = message["chat"]["id"]
-    user_id = message["from"]["id"]
-    message_id = message["message_id"]
-    first_name = message["from"].get("first_name", "")
+    if "message" in update:
+        msg = update["message"]
+        user_id = msg["from"]["id"]
+        username = msg["from"].get("username", "ندارد")
+        chat_id = msg["chat"]["id"]
+        text = msg.get("text", "").strip()
 
-    step_file = f"{DATA_DIR}/{user_id}-step.txt"
-    order_file = f"{DATA_DIR}/{user_id}-order.txt"
-
-    # شروع ربات
-    if text == "/start":
-        save_step(user_id, "none")
-        keyboard = [[{"text": "📝 ثبت سفارش"}, {"text": "📞 تماس با ادمین"}]]
-        send_message(chat_id, f"سلام {first_name} 👋\nبه پنل همکاری فروش VPN خوش اومدی!\nاز دکمه‌های زیر استفاده کن:", keyboard)
-
-    # مراحل سفارش
-    elif text == "📝 ثبت سفارش":
-        save_step(user_id, "order_name")
-        send_message(chat_id, "🔸 لطفاً <b>نام مشتری</b> را وارد کن:")
-
-    elif get_step(user_id) == "order_name":
-        with open(order_file, "w") as f:
-            f.write(f"👤 نام مشتری: {text}\n")
-        save_step(user_id, "order_volume")
-        send_message(chat_id, "🔸 حجم مورد نیاز را وارد کن (مثلاً ۳۰ گیگ):")
-
-    elif get_step(user_id) == "order_volume":
-        with open(order_file, "a") as f:
-            f.write(f"📦 حجم: {text}\n")
-        save_step(user_id, "order_time")
-        send_message(chat_id, "🔸 مدت زمان سرویس را وارد کن (مثلاً ۱ ماهه):")
-
-    elif get_step(user_id) == "order_time":
-        with open(order_file, "a") as f:
-            f.write(f"⏳ مدت زمان: {text}\n")
-        with open(order_file, "r") as f:
-            order_data = f.read()
-        send_message(chat_id, "✅ سفارش ثبت شد و برای ادمین ارسال شد.")
-        send_message(ADMIN_ID, f"📬 سفارش جدید از همکار:\n\n{order_data}\n🔝 آیدی عددی همکار: {user_id}")
-        save_step(user_id, "none")
-
-    elif text == "📞 تماس با ادمین":
-        send_message(chat_id, "✉️ پیام‌تو بنویس و بفرست. من برای ادمین فوروارد می‌کنم.")
-
-    # فوروارد پیام کاربر برای ادمین
-    elif chat_id != ADMIN_ID:
-        requests.post(API_URL + "forwardMessage", data={
-            "chat_id": ADMIN_ID,
-            "from_chat_id": chat_id,
-            "message_id": message_id
-        })
-        send_message(chat_id, "📨 پیام شما برای ادمین فوروارد شد.")
-
-    # ارسال پاسخ از ادمین با دستور /send
-    elif text.startswith("/send") and chat_id == ADMIN_ID:
-        parts = text.split(" ", 2)
-        if len(parts) >= 3:
-            target_id, reply_text = parts[1], parts[2]
-            send_message(target_id, f"📬 پاسخ ادمین:\n{reply_text}")
-            send_message(ADMIN_ID, f"✅ پیام برای کاربر {target_id} ارسال شد.")
+        if text == "/start":
+            send_message(chat_id, "سلام! ربات پنل همکاری VPN آماده است. لطفا سفارش یا پیام خود را ارسال کنید.")
         else:
-            send_message(ADMIN_ID, "❗ فرمت اشتباه. مثال:\n/send 123456789 سلام، سرویس شما آماده‌ست.")
+            order_id = len(orders) + 1
+            orders.append({
+                "id": order_id,
+                "user_id": user_id,
+                "username": username,
+                "text": text,
+                "response": None
+            })
+            send_message(ADMIN_ID, f"سفارش جدید #{order_id} از @{username} (ID: {user_id}):\n{text}")
+            send_message(chat_id, f"سفارش شما ثبت شد با شماره: #{order_id}\nمنتظر پاسخ ادمین باشید.")
 
-    return "ok"
+    return "OK", 200
 
-# اجرای سرور در رندر
+def check_admin(user_id):
+    return user_id == ADMIN_ID
+
+@app.route("/admin", methods=["GET", "POST"])
+def admin_panel():
+    user_id = request.args.get("user_id", type=int)
+    if not check_admin(user_id):
+        return abort(403, description="دسترسی فقط برای ادمین مجاز است.")
+
+    msg = ""
+    if request.method == "POST":
+        order_id = int(request.form.get("order_id", -1))
+        response_text = request.form.get("response_text", "").strip()
+        if order_id > 0 and response_text:
+            order = next((o for o in orders if o["id"] == order_id), None)
+            if order:
+                order["response"] = response_text
+                send_message(order["user_id"], f"پاسخ ادمین به سفارش #{order_id}:\n{response_text}")
+                msg = "پاسخ ارسال شد."
+            else:
+                msg = "سفارش یافت نشد."
+
+    html = """
+    <h2>پنل ادمین - سفارش‌ها و پیام‌های همکاران</h2>
+    <p style="color:green;">{{ msg }}</p>
+    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+        <tr>
+            <th>شماره سفارش</th>
+            <th>کاربر (username)</th>
+            <th>متن سفارش</th>
+            <th>پاسخ</th>
+            <th>ارسال پاسخ</th>
+        </tr>
+        {% for order in orders %}
+        <tr>
+            <td>{{ order.id }}</td>
+            <td>@{{ order.username }} ({{ order.user_id }})</td>
+            <td>{{ order.text }}</td>
+            <td>{{ order.response or "بدون پاسخ" }}</td>
+            <td>
+            {% if not order.response %}
+                <form method="post" style="margin:0;">
+                    <input type="hidden" name="order_id" value="{{ order.id }}">
+                    <textarea name="response_text" rows="2" cols="30" placeholder="جواب را اینجا بنویس..." required></textarea><br>
+                    <button type="submit">ارسال پاسخ</button>
+                </form>
+            {% else %}
+                ---
+            {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    """
+
+    return render_template_string(html, orders=orders, msg=msg)
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    set_webhook()  # ست کردن خودکار وب‌هوک هنگام استارت برنامه
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
