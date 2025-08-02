@@ -24,6 +24,9 @@ invoices = {}
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = request.get_json()
+    if not update:
+        return "no update", 400
+
     if "message" in update:
         handle_message(update["message"])
     elif "callback_query" in update:
@@ -50,26 +53,22 @@ def handle_message(message):
         order = pending_orders.pop(user_id)
         service_name = text.strip()
 
-        # تاریخ و فاکتور
         tehran = pytz.timezone('Asia/Tehran')
         date_str = datetime.now(tehran).strftime('%Y/%m/%d')
         invoice_id = f"INV-{datetime.now(tehran).strftime('%Y%m%d%H%M%S')}"
 
-        # ذخیره برای دکمه بعدی
         invoices[invoice_id] = {
             "user_id": user_id,
             "chat_id": chat_id,
             "service_name": service_name
         }
 
-        # به کاربر
         requests.post(f"{API}/sendMessage", json={
             "chat_id": chat_id,
             "text": f"✅ سفارش شما با موفقیت ثبت شد.\n\n📝 نام سرویس: {service_name}\n💾 حجم: {order['volume']}\n📅 تاریخ ثبت: {date_str}\n🧾 شماره فاکتور: `{invoice_id}`",
             "parse_mode": "Markdown"
         })
 
-        # به ادمین با دکمه
         admin_btn = {
             "inline_keyboard": [[
                 {"text": "✅ سفارش انجام شد", "callback_data": f"done_{invoice_id}"}
@@ -87,16 +86,14 @@ def handle_callback(callback):
     chat_id = callback["message"]["chat"]["id"]
 
     if data.startswith("done_"):
-        invoice_id = data.split("_")[1]
+        invoice_id = data.split("_", 1)[1]
         if invoice_id in invoices:
             user_info = invoices.pop(invoice_id)
-            # به کاربر پیام بده
             requests.post(f"{API}/sendMessage", json={
                 "chat_id": user_info["chat_id"],
                 "text": f"✅ سفارش شما با شماره فاکتور `{invoice_id}` توسط ادمین تأیید و انجام شد.\nسپاس از اعتمادتون 🙏",
                 "parse_mode": "Markdown"
             })
-            # به ادمین هم پیام بده
             requests.post(f"{API}/sendMessage", json={
                 "chat_id": chat_id,
                 "text": f"📦 سفارش با شماره فاکتور `{invoice_id}` به کاربر ارسال شد.",
@@ -104,7 +101,6 @@ def handle_callback(callback):
             })
         return
 
-    # سفارش حجم
     user_id = callback["from"]["id"]
     volume = data
     username = callback["from"].get("username", "ندارد")
