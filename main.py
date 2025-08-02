@@ -1,5 +1,6 @@
-from flask import Flask, request, render_template_string, abort import os import requests
-
+from flask import Flask, request, render_template_string, abort
+import os
+import requests
 app = Flask(name)
 
 BOT_TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I" API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}" ADMIN_ID = 7210975276 SUPPORT_USERNAME = "@vpn_seller_support"  # یوزرنیم پشتیبانی
