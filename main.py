@@ -6,7 +6,7 @@ import os
 TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I"
 ADMIN_ID = 7210975276
 API_URL = f"https://api.telegram.org/bot{TOKEN}/"
-WEBHOOK_URL = "https://my-vpn-bot-1-m1vj.onrender.com"
+WEBHOOK_URL = https://my-vpn-bot-1-m1vj.onrender.com
 
 # ساخت پوشه دیتا
 DATA_DIR = "data"
