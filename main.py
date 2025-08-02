@@ -1,6 +1,9 @@
-from flask import Flask, request import requests import os
+from flask import Flask, request
+import requests
+import os
 
-app = Flask(name)
+app = Flask(__name__)
+# بقیه کد...
 
 TOKEN = "8067456175:AAFsowei6yZZsEExG6jZWBYxE1KQ_dBcZ3I" ADMIN_ID = 7210975276 API_URL = f"https://api.telegram.org/bot{TOKEN}/"
 
